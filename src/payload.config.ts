@@ -45,16 +45,7 @@ export default buildConfig({
     },
   },
 
-  collections: [
-    Users,
-    Media,
-    Genres,
-    Content,
-    Episodes,
-    Favorites,
-    Seasons,
-  ],
-  
+  collections: [Users, Media, Genres, Content, Episodes, Favorites, Seasons],
 
   editor: lexicalEditor(),
 
@@ -91,30 +82,41 @@ export default buildConfig({
     s3Storage(s3StorageOptions),
     searchPlugin({
       collections: ['content'], // slug коллекции, которую индексируем
-searchOverrides: {
-  slug: 'search-results',
-  fields: ({ defaultFields }) => [
-    ...defaultFields,
-    { name: 'titleEn', type: 'text' },
-    { name: 'slug', type: 'text' },
-    { name: 'type', type: 'text' },
-    { name: 'releaseYear', type: 'number' },
-    { name: 'rating', type: 'number' },
-    { name: 'poster', type: 'upload', relationTo: 'media' },
-  ],
-},
-beforeSync: ({ originalDoc, searchDoc }) => ({
-  ...searchDoc,
-  title: originalDoc.titleRu,
-  titleEn: originalDoc.titleEn,
-  slug: originalDoc.slug,
-  type: originalDoc.type,
-  releaseYear: originalDoc.releaseYear,
-  rating: originalDoc.rating,
-  poster: originalDoc.poster,
-}),
+      searchOverrides: {
+        slug: 'search-results',
+        fields: ({ defaultFields }) => [
+          ...defaultFields,
+          { name: 'titleEn', type: 'text' },
+          { name: 'slug', type: 'text' },
+          { name: 'type', type: 'text' },
+          { name: 'releaseYear', type: 'number' },
+          { name: 'rating', type: 'number' },
+          { name: 'poster', type: 'upload', relationTo: 'media' },
+        ],
+      },
+      beforeSync: ({ originalDoc, searchDoc }) => ({
+        ...searchDoc,
+        title: originalDoc.titleRu,
+        titleEn: originalDoc.titleEn,
+        slug: originalDoc.slug,
+        type: originalDoc.type,
+        releaseYear: originalDoc.releaseYear,
+        rating: originalDoc.rating,
+        poster: originalDoc.poster,
+      }),
     }),
   ],
+
+  /**
+   * GraphQL-настройки.
+   *
+   * Временно включаем Playground и интроспекцию в production для отладки.
+   * После того как схема будет известна — верните true или удалите эти строки.
+   */
+  graphQL: {
+    disablePlaygroundInProduction: false,
+    disableIntrospectionInProduction: false,
+  },
 
   /**
    * Разрешаем запросы от CMS Admin Panel и frontend.
