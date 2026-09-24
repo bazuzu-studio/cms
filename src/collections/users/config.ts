@@ -4,6 +4,7 @@ import { editor } from '@/access/editor'
 import user from '@/access/user'
 import { admin } from '@/access/admin'
 import { publicOrEditor } from '@/access/publicOrEditor'
+import { cookieDomain, cookieSecure } from '@/lib/urls'
 
 export const Users: CollectionConfig = {
   slug: 'users',
@@ -27,7 +28,16 @@ export const Users: CollectionConfig = {
     admin: ({ req: { user } }) =>
       Boolean(user?.roles?.some((r) => ['admin', 'editor'].includes(r))),
   },
-  auth: true,
+  auth: {
+    // За Traefik/HTTPS (Dokploy) auth-cookie должна быть Secure.
+    // SameSite=Lax достаточно для запросов между поддоменами одного сайта
+    // (otakuum.ru ↔ cms.otakuum.ru).
+    cookies: {
+      secure: cookieSecure,
+      sameSite: 'Lax',
+      ...(cookieDomain ? { domain: cookieDomain } : {}),
+    },
+  },
   fields: [
     { name: 'name', type: 'text' },
     { name: 'avatar', type: 'upload', relationTo: 'media' },

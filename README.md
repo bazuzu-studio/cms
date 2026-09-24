@@ -15,8 +15,8 @@ Backend и админ-панель онлайн-кинотеатра на [Paylo
 
 - Node.js `^18.20.2` или `>=20.9.0`
 - pnpm `^9 || ^10 || ^11`
-- PostgreSQL (локально или через корневой `docker-compose.yml`)
-- S3-совместимое хранилище (MinIO — поднимается тем же `docker-compose.yml`) для загрузки медиафайлов
+- PostgreSQL (локально — через `docker-compose.dev.yml`)
+- S3-совместимое хранилище (MinIO — поднимается тем же `docker-compose.dev.yml`) для загрузки медиафайлов
 
 ## Переменные окружения
 
@@ -26,21 +26,24 @@ Backend и админ-панель онлайн-кинотеатра на [Paylo
 cp .env.example .env
 ```
 
-> В репозитории `.env.example` унаследован от стандартного Payload-темплейта и указывает на MongoDB — **фактически проект использует PostgreSQL** (`@payloadcms/db-postgres`, см. `src/payload.config.ts`). Используйте таблицу ниже, а не значения из `.env.example` по умолчанию.
-
 | Переменная | Обязательна | Описание |
 | --- | --- | --- |
-| `DATABASE_URL` | да | Строка подключения к PostgreSQL, например `postgres://admin:password@127.0.0.1:5432/movies2` |
-| `PAYLOAD_SECRET` | да | Секрет для подписи JWT и шифрования Payload |
-| `PORT` | нет | Порт dev-сервера (по умолчанию задаётся флагом `-p 4000` в скрипте `dev`) |
-| `NEXT_PUBLIC_APP_URL` | нет | URL самой CMS (`serverURL`, используется в `admin` и CORS/CSRF). По умолчанию `http://localhost:4000` |
-| `FRONTEND_URL` | нет | URL приложения `apps/web`, добавляется в разрешённые CORS/CSRF-origin'ы. По умолчанию `http://localhost:3000` |
+| `DATABASE_URL` | да | Строка подключения к PostgreSQL, например `postgresql://postgres:postgres@127.0.0.1:5432/movhub` |
+| `PAYLOAD_SECRET` | да | Секрет для подписи JWT и шифрования Payload (`openssl rand -hex 32`) |
+| `CMS_URL` | нет | Публичный URL самой CMS (`serverURL`, CORS/CSRF, флаг `Secure` у auth-cookie). По умолчанию `http://localhost:4000`. Старое имя `NEXT_PUBLIC_APP_URL` тоже читается, но `CMS_URL` предпочтительнее |
+| `FRONTEND_URL` | нет | URL приложения `apps/web`, можно несколько через запятую. В dev по умолчанию `http://localhost:3000`, в production — пусто |
+| `COOKIE_DOMAIN` | нет | Домен auth-cookie (например `.otakuum.ru`), если frontend на другом поддомене должен видеть cookie CMS. По умолчанию host-only |
+| `PORT` | нет | Порт dev-сервера (по умолчанию задаётся флагом `-p 4000` в скрипте `dev`); в Docker-образе — `3000` |
 | `S3_BUCKET` | да | Имя S3-бакета для медиафайлов |
-| `S3_ENDPOINT` | да | Endpoint S3/MinIO, например `http://localhost:9000` |
+| `S3_ENDPOINT` | да | Endpoint S3/MinIO, к которому обращается **сервер** CMS, например `http://localhost:9000` (в Dokploy — `http://movhub-minio:9000`) |
 | `S3_REGION` | нет | Регион (по умолчанию `us-east-1`) |
 | `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | да | Ключи доступа к S3/MinIO |
-| `S3_PUBLIC_URL` | да | Публичный URL, по которому браузер будет загружать файлы (например `http://localhost:9000/media`) |
+| `S3_PUBLIC_URL` | да | Публичный URL, по которому **браузер** получает файлы (`http://localhost:9000/media` локально, `https://cms.otakuum.ru/media` в production) |
+| `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | для MinIO | Учётные данные самого MinIO (docker-compose) |
+| `MINIO_API_PORT` / `MINIO_CONSOLE_PORT` | нет | Порты MinIO в `docker-compose.dev.yml` (по умолчанию `9000` / `9001`) |
 | `KODIK_API_TOKEN` | только для импорта | Токен Kodik API — нужен эндпоинту `/api/import/kodik` |
+
+Шаблон — в `.env.example`. Для Dokploy значения задаются во вкладке **Environment** (см. раздел «Деплой в Dokploy»).
 
 Готовый набор значений для локальной разработки со всеми сервисами уже подготовлен в `.env.local` в **корне** монорепозитория — можно скопировать нужные переменные оттуда.
 
@@ -61,10 +64,10 @@ pnpm install
 pnpm dev
 ```
 
-Перед запуском убедитесь, что подняты PostgreSQL и MinIO (см. корневой [`docker-compose.yml`](../../README.md#инфраструктура-docker-compose)):
+Перед запуском убедитесь, что подняты PostgreSQL и MinIO:
 
 ```bash
-docker-compose up -d
+docker compose -f docker-compose.dev.yml up -d
 ```
 
 CMS и Admin Panel будут доступны на [http://localhost:4000/admin](http://localhost:4000/admin). При первом запуске Payload предложит создать первого администратора.
@@ -85,6 +88,8 @@ CMS и Admin Panel будут доступны на [http://localhost:4000/admin
 | `pnpm generate:types` | Сгенерировать `src/payload-types.ts` из текущей конфигурации коллекций |
 | `pnpm generate:importmap` | Сгенерировать import map для Admin Panel (нужно после добавления кастомных admin-компонентов) |
 | `pnpm payload` | Доступ к Payload CLI |
+| `pnpm migrate:create <имя>` | Создать миграцию БД после изменения коллекций (см. «Миграции БД») |
+| `pnpm migrate` / `pnpm migrate:status` | Применить миграции / показать статус |
 | `pnpm test` | Все тесты (`test:int` + `test:e2e`) |
 | `pnpm test:int` | Интеграционные тесты (Vitest) |
 | `pnpm test:e2e` | E2E-тесты (Playwright) |
@@ -125,7 +130,7 @@ CMS и Admin Panel будут доступны на [http://localhost:4000/admin
 
 ## Хранилище файлов (S3/MinIO)
 
-Коллекция `media` настроена на S3-совместимое хранилище (`src/lib/storage/s3.ts`). URL для отдачи файлов браузеру собирается из `S3_PUBLIC_URL`, доступ к бакету настраивается автоматически сервисом `minio-init` из корневого `docker-compose.yml`.
+Коллекция `media` настроена на S3-совместимое хранилище (`src/lib/storage/s3.ts`). URL для отдачи файлов браузеру собирается из `S3_PUBLIC_URL`, доступ к бакету настраивается автоматически сервисом `minio-init` из `docker-compose.dev.yml` (локально) / `movhub-minio-init` из `docker-compose.yml` (Dokploy).
 
 ## Тестирование
 
@@ -159,6 +164,7 @@ apps/cms/
 │   ├── app/
 │   │   ├── (payload)/           # Admin Panel и API-роуты Payload
 │   │   └── (frontend)/           # Служебный frontend-роут самого Payload-приложения
+│   ├── migrations/            # Миграции БД (`pnpm migrate:create`), применяются при старте в production
 │   ├── payload-types.ts       # Автогенерируемые типы (`pnpm generate:types`, не редактировать вручную)
 │   └── payload.config.ts       # Главный конфиг Payload (коллекции, БД, S3, CORS, endpoints)
 ├── tests/
@@ -166,10 +172,49 @@ apps/cms/
 │   ├── e2e/                   # E2E-тесты (Playwright)
 │   └── helpers/                 # Общие хелперы для тестов
 ├── Dockerfile
-├── docker-compose.yml       # Локальный docker-compose для этого приложения (альтернатива корневому)
+├── docker-compose.yml       # Деплой в Dokploy: CMS + MinIO
+├── docker-compose.dev.yml   # Локальная инфраструктура: PostgreSQL + MinIO
 └── playwright.config.ts / vitest.config.mts
 ```
 
+## Миграции БД
+
+В dev-режиме (`pnpm dev`) схему синхронизирует Drizzle push. В production push отключён, поэтому схема разворачивается **миграциями** из `src/migrations`, а `prodMigrations` в `src/payload.config.ts` применяет их автоматически при старте контейнера.
+
+После любого изменения коллекций/полей:
+
+```bash
+pnpm migrate:create <короткое-имя>   # создаст файл в src/migrations и обновит index.ts
+pnpm generate:types                  # обновит src/payload-types.ts
+git add src/migrations src/payload-types.ts
+```
+
+Закоммитьте миграцию вместе с изменением — при следующем деплое она применится сама.
+
 ## Docker
 
-В `apps/cms` есть собственные `Dockerfile` и `docker-compose.yml` для изолированного локального запуска (например, для сборки production-образа CMS). Для полноценной локальной разработки монорепозитория используйте корневой `docker-compose.yml` — он поднимает PostgreSQL, Redis и MinIO для всей платформы сразу.
+- `Dockerfile` — production-образ (Next.js `output: 'standalone'`, Node 22 Alpine, запуск не от root). Для сборки runtime-переменные не нужны.
+- `docker-compose.yml` — деплой в Dokploy: CMS + MinIO (+ одноразовая инициализация бакета). См. ниже.
+- `docker-compose.dev.yml` — только инфраструктура для локальной разработки (PostgreSQL + MinIO).
+
+## Деплой в Dokploy
+
+Домен: **cms.otakuum.ru**. БД — уже созданная в Dokploy PostgreSQL, обращение по внутреннему хосту.
+
+1. **DNS.** A-запись `cms.otakuum.ru` → IP сервера Dokploy.
+2. **Создать приложение:** Project → *Create Service* → **Compose**. Provider: Git (репозиторий с этим кодом), *Compose Path* — `./docker-compose.yml`, *Compose Type* — Docker Compose.
+3. **Environment.** Вставить содержимое `dokploy.env` (шаблон — `.env.example`, блок PRODUCTION).
+4. **Домены в UI Dokploy не добавлять** — Traefik-роутеры для `cms.otakuum.ru` и `cms.otakuum.ru/media/` уже описаны лейблами в `docker-compose.yml`. Сертификат Let's Encrypt выпускается автоматически.
+5. **Deploy.** При первом старте CMS сама применит миграции к БД `movhub`. Затем откройте `https://cms.otakuum.ru/admin` и создайте первого администратора.
+
+Как это устроено:
+
+| Что | Где |
+| --- | --- |
+| Админка и API | `https://cms.otakuum.ru` → сервис `cms` (порт 3000) |
+| Файлы (медиа) | `https://cms.otakuum.ru/media/<файл>` → сервис `movhub-minio` (порт 9000), анонимное только чтение |
+| Загрузка файлов | сервер CMS → `http://movhub-minio:9000` по внутренней сети (снаружи запись недоступна без ключей) |
+| БД | `my-first-project-database-jxz2iy:5432` через внешнюю сеть `dokploy-network` |
+| Консоль MinIO | наружу не опубликована; при необходимости — через SSH-туннель к порту 9001 контейнера |
+
+> Если меняете имя бакета (`S3_BUCKET`), поменяйте `/media/` в лейблах `docker-compose.yml` и в `S3_PUBLIC_URL`.

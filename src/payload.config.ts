@@ -14,52 +14,13 @@ import { Content } from './collections/content/config'
 import { Episodes } from './collections/episodes/config'
 import { Favorites } from './collections/favorites/config'
 import { Seasons } from './collections/seasons/config'
+import { migrations } from './migrations'
+import { allowedOrigins, cmsURL } from './lib/urls'
 
 import { searchPlugin } from '@payloadcms/plugin-search'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
-
-/**
- * URL текущего Payload CMS.
- *
- * CMS и Admin Panel работают на этом origin.
- *
- * .env:
- * NEXT_PUBLIC_APP_URL=http://localhost:4000
- */
-const cmsURL =
-  process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:4000'
-
-/**
- * URL frontend-приложения Next.js.
- *
- * Важно:
- * NEXT_PUBLIC_APP_URL во frontend и CMS — это разные переменные
- * в разных .env-файлах.
- *
- * CMS:
- *   NEXT_PUBLIC_APP_URL=http://localhost:4000
- *
- * WEB:
- *   NEXT_PUBLIC_APP_URL=http://localhost:3000
- */
-const frontendURL =
-  process.env.FRONTEND_URL || 'http://localhost:3000'
-
-/**
- * Origin'ы, которым Payload разрешает обращаться к API.
- *
- * CMS нужен для Admin Panel.
- * Frontend нужен для авторизации и API-запросов с web-приложения.
- */
-const allowedOrigins = [
-  cmsURL,
-  frontendURL,
-
-  // Production:
-  // process.env.FRONTEND_URL_PRODUCTION,
-].filter(Boolean)
 
 export default buildConfig({
   /**
@@ -100,6 +61,13 @@ export default buildConfig({
     pool: {
       connectionString: process.env.DATABASE_URL || '',
     },
+
+    // В production (NODE_ENV=production) Drizzle push отключён, поэтому схема
+    // БД разворачивается миграциями из src/migrations. prodMigrations
+    // применяет ещё не выполненные миграции автоматически при старте
+    // контейнера — отдельный шаг `payload migrate` в Dokploy не нужен.
+    // В dev-режиме по-прежнему работает push.
+    prodMigrations: migrations,
   }),
 
   // Приведение типа намеренное: между версиями `sharp` (0.34.x/0.35.x) и

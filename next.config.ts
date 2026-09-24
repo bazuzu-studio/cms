@@ -1,12 +1,11 @@
 import { withPayload } from '@payloadcms/next/withPayload'
 import type { NextConfig } from 'next'
-import path from 'path'
-import { fileURLToPath } from 'url'
-
-const __filename = fileURLToPath(import.meta.url)
-const dirname = path.dirname(__filename)
 
 const nextConfig: NextConfig = {
+  // Самодостаточная сборка (.next/standalone) — нужна для минимального
+  // Docker-образа (см. Dockerfile) и деплоя в Dokploy.
+  output: 'standalone',
+
   images: {
     localPatterns: [
       {
@@ -22,9 +21,6 @@ const nextConfig: NextConfig = {
     }
 
     return webpackConfig
-  },
-  turbopack: {
-    root: path.resolve(dirname, "../../"),
   },
 }
 

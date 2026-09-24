@@ -1,6 +1,14 @@
 import type { S3StorageOptions } from '@payloadcms/storage-s3'
 
 /**
+ * `next build` выполняется в Docker/Dokploy на этапе сборки образа, где
+ * runtime-переменных (S3_*, DATABASE_URL, ...) обычно ещё нет — они
+ * подставляются только при запуске контейнера. Поэтому на этапе сборки
+ * не падаем, а используем заглушки; в рантайме проверка остаётся строгой.
+ */
+const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build'
+
+/**
  * Достаёт обязательную переменную окружения и падает с понятной ошибкой,
  * если она не задана — лучше уронить старт CMS сразу, чем ловить
  * непонятные ошибки S3 в рантайме из-за пустого bucket/endpoint.
@@ -9,6 +17,8 @@ const requireEnv = (name: string): string => {
   const value = process.env[name]?.trim()
 
   if (!value) {
+    if (isBuildPhase) return `build-placeholder-${name.toLowerCase()}`
+
     throw new Error(`Missing required environment variable: ${name}`)
   }
 
@@ -16,7 +26,7 @@ const requireEnv = (name: string): string => {
 }
 
 // Публичный URL, по которому отдаются файлы (например, http://localhost:9000/media
-// для локального MinIO, или домен CDN/S3 в продакшене). Хвостовые слэши убираем,
+// для локального MinIO или https://cms.otakuum.ru/media в продакшене на Dokploy). Хвостовые слэши убираем,
 // чтобы не задвоить их при склейке с ключом файла ниже.
 const publicUrl = requireEnv('S3_PUBLIC_URL').replace(/\/+$/, '')
 
