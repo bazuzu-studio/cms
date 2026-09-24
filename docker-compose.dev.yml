@@ -1,4 +1,4 @@
-# Локальная разработка: PostgreSQL + MinIO.
+# [Dokploy] Локальная разработка: PostgreSQL + MinIO.
 #
 #   docker compose -f docker-compose.dev.yml --env-file .env up -d
 #   pnpm dev            # CMS на http://localhost:4000/admin

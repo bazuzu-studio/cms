@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url'
 import config from '@/payload.config'
 import './styles.css'
 
-// Страница обращается к БД (payload.auth) — не пререндерим её на этапе
+// [Dokploy] Страница обращается к БД (payload.auth) — не пререндерим её на этапе
 // `next build`: в Docker-сборке БД недоступна.
 export const dynamic = 'force-dynamic'
 

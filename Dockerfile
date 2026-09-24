@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 #
-# Production-образ Payload CMS (Next.js standalone) для Dokploy.
+# [Dokploy] Production-образ Payload CMS (Next.js standalone) для Dokploy.
 # Требует `output: 'standalone'` в next.config.ts (уже включено).
 # Основан на https://github.com/vercel/next.js/blob/canary/examples/with-docker/Dockerfile
 

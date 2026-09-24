@@ -1,5 +1,5 @@
 /**
- * URL'ы CMS и frontend + список разрешённых origin'ов для CORS/CSRF.
+ * [Dokploy] URL'ы CMS и frontend + список разрешённых origin'ов для CORS/CSRF.
  *
  * Все значения читаются из runtime-переменных окружения (Dokploy → Environment):
  *

@@ -14,7 +14,12 @@ import { Content } from './collections/content/config'
 import { Episodes } from './collections/episodes/config'
 import { Favorites } from './collections/favorites/config'
 import { Seasons } from './collections/seasons/config'
+// [Dokploy] Миграции БД (генерируются `pnpm migrate:create`) — в production
+// схема разворачивается ими, а не Drizzle push.
 import { migrations } from './migrations'
+// [Dokploy] URL CMS/frontend и список CORS/CSRF-origin'ов теперь читаются из
+// runtime-переменных CMS_URL / FRONTEND_URL (см. src/lib/urls.ts). Раньше эти
+// значения были захардкожены на localhost и NEXT_PUBLIC_APP_URL.
 import { allowedOrigins, cmsURL } from './lib/urls'
 
 import { searchPlugin } from '@payloadcms/plugin-search'
@@ -27,6 +32,8 @@ export default buildConfig({
    * Основной URL Payload.
    *
    * Важно для Admin Panel и server-side операций Payload.
+   *
+   * [Dokploy] В production = CMS_URL (https://cms.otakuum.ru).
    */
   serverURL: cmsURL,
 
@@ -62,7 +69,7 @@ export default buildConfig({
       connectionString: process.env.DATABASE_URL || '',
     },
 
-    // В production (NODE_ENV=production) Drizzle push отключён, поэтому схема
+    // [Dokploy] В production (NODE_ENV=production) Drizzle push отключён, поэтому схема
     // БД разворачивается миграциями из src/migrations. prodMigrations
     // применяет ещё не выполненные миграции автоматически при старте
     // контейнера — отдельный шаг `payload migrate` в Dokploy не нужен.
@@ -111,6 +118,9 @@ beforeSync: ({ originalDoc, searchDoc }) => ({
 
   /**
    * Разрешаем запросы от CMS Admin Panel и frontend.
+   *
+   * [Dokploy] Список собирается в src/lib/urls.ts: CMS_URL + FRONTEND_URL.
+   * В production localhost в список не попадает.
    */
   cors: allowedOrigins,
 

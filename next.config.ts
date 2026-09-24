@@ -2,7 +2,7 @@ import { withPayload } from '@payloadcms/next/withPayload'
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  // Самодостаточная сборка (.next/standalone) — нужна для минимального
+  // [Dokploy] Самодостаточная сборка (.next/standalone) — нужна для минимального
   // Docker-образа (см. Dockerfile) и деплоя в Dokploy.
   output: 'standalone',
 

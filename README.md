@@ -28,18 +28,18 @@ cp .env.example .env
 
 | Переменная | Обязательна | Описание |
 | --- | --- | --- |
-| `DATABASE_URL` | да | Строка подключения к PostgreSQL, например `postgresql://postgres:postgres@127.0.0.1:5432/movhub` |
+| `DATABASE_URL` | да | Строка подключения к PostgreSQL, например `postgresql://postgres:postgres@127.0.0.1:5432/movhub`; в Dokploy — внутренний хост БД |
 | `PAYLOAD_SECRET` | да | Секрет для подписи JWT и шифрования Payload (`openssl rand -hex 32`) |
 | `CMS_URL` | нет | Публичный URL самой CMS (`serverURL`, CORS/CSRF, флаг `Secure` у auth-cookie). По умолчанию `http://localhost:4000`. Старое имя `NEXT_PUBLIC_APP_URL` тоже читается, но `CMS_URL` предпочтительнее |
 | `FRONTEND_URL` | нет | URL приложения `apps/web`, можно несколько через запятую. В dev по умолчанию `http://localhost:3000`, в production — пусто |
 | `COOKIE_DOMAIN` | нет | Домен auth-cookie (например `.otakuum.ru`), если frontend на другом поддомене должен видеть cookie CMS. По умолчанию host-only |
 | `PORT` | нет | Порт dev-сервера (по умолчанию задаётся флагом `-p 4000` в скрипте `dev`); в Docker-образе — `3000` |
 | `S3_BUCKET` | да | Имя S3-бакета для медиафайлов |
-| `S3_ENDPOINT` | да | Endpoint S3/MinIO, к которому обращается **сервер** CMS, например `http://localhost:9000` (в Dokploy — `http://movhub-minio:9000`) |
+| `S3_ENDPOINT` | да | Endpoint S3/MinIO, к которому обращается **сервер** CMS, например `http://localhost:9000` (в Dokploy — внутренний адрес вашего MinIO, `http://<internal-host>:9000`) |
 | `S3_REGION` | нет | Регион (по умолчанию `us-east-1`) |
 | `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | да | Ключи доступа к S3/MinIO |
-| `S3_PUBLIC_URL` | да | Публичный URL, по которому **браузер** получает файлы (`http://localhost:9000/media` локально, `https://cms.otakuum.ru/media` в production) |
-| `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | для MinIO | Учётные данные самого MinIO (docker-compose) |
+| `S3_PUBLIC_URL` | да | Публичный URL, по которому **браузер** получает файлы (`http://localhost:9000/media` локально, публичный домен вашего MinIO, например `https://s3.example.ru/media`, в production) |
+| `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | только локально | Учётные данные MinIO из `docker-compose.dev.yml` (в Dokploy MinIO — отдельный сервис, эти переменные CMS не нужны) |
 | `MINIO_API_PORT` / `MINIO_CONSOLE_PORT` | нет | Порты MinIO в `docker-compose.dev.yml` (по умолчанию `9000` / `9001`) |
 | `KODIK_API_TOKEN` | только для импорта | Токен Kodik API — нужен эндпоинту `/api/import/kodik` |
 
@@ -130,7 +130,7 @@ CMS и Admin Panel будут доступны на [http://localhost:4000/admin
 
 ## Хранилище файлов (S3/MinIO)
 
-Коллекция `media` настроена на S3-совместимое хранилище (`src/lib/storage/s3.ts`). URL для отдачи файлов браузеру собирается из `S3_PUBLIC_URL`, доступ к бакету настраивается автоматически сервисом `minio-init` из `docker-compose.dev.yml` (локально) / `movhub-minio-init` из `docker-compose.yml` (Dokploy).
+Коллекция `media` настроена на S3-совместимое хранилище (`src/lib/storage/s3.ts`). URL для отдачи файлов браузеру собирается из `S3_PUBLIC_URL`, локально бакет создаёт сервис `minio-init` из `docker-compose.dev.yml`; в Dokploy бакет нужно создать в вашем MinIO самостоятельно и открыть на публичное чтение (см. «Деплой в Dokploy»).
 
 ## Тестирование
 
@@ -172,7 +172,7 @@ apps/cms/
 │   ├── e2e/                   # E2E-тесты (Playwright)
 │   └── helpers/                 # Общие хелперы для тестов
 ├── Dockerfile
-├── docker-compose.yml       # Деплой в Dokploy: CMS + MinIO
+├── docker-compose.yml       # Деплой в Dokploy: только CMS
 ├── docker-compose.dev.yml   # Локальная инфраструктура: PostgreSQL + MinIO
 └── playwright.config.ts / vitest.config.mts
 ```
@@ -194,27 +194,30 @@ git add src/migrations src/payload-types.ts
 ## Docker
 
 - `Dockerfile` — production-образ (Next.js `output: 'standalone'`, Node 22 Alpine, запуск не от root). Для сборки runtime-переменные не нужны.
-- `docker-compose.yml` — деплой в Dokploy: CMS + MinIO (+ одноразовая инициализация бакета). См. ниже.
-- `docker-compose.dev.yml` — только инфраструктура для локальной разработки (PostgreSQL + MinIO).
+- `docker-compose.yml` — деплой в Dokploy: **только CMS**. PostgreSQL и MinIO в стек не входят.
+- `docker-compose.dev.yml` — инфраструктура для локальной разработки (PostgreSQL + MinIO).
 
 ## Деплой в Dokploy
 
-Домен: **cms.otakuum.ru**. БД — уже созданная в Dokploy PostgreSQL, обращение по внутреннему хосту.
+Домен: **cms.otakuum.ru**. В Dokploy запускается только CMS; PostgreSQL и MinIO — отдельные сервисы того же проекта, CMS подключается к ним по внутренним именам.
+
+Рекомендуемый вариант — сервис **Application**:
 
 1. **DNS.** A-запись `cms.otakuum.ru` → IP сервера Dokploy.
-2. **Создать приложение:** Project → *Create Service* → **Compose**. Provider: Git (репозиторий с этим кодом), *Compose Path* — `./docker-compose.yml`, *Compose Type* — Docker Compose.
-3. **Environment.** Вставить содержимое `dokploy.env` (шаблон — `.env.example`, блок PRODUCTION).
-4. **Домены в UI Dokploy не добавлять** — Traefik-роутеры для `cms.otakuum.ru` и `cms.otakuum.ru/media/` уже описаны лейблами в `docker-compose.yml`. Сертификат Let's Encrypt выпускается автоматически.
-5. **Deploy.** При первом старте CMS сама применит миграции к БД `movhub`. Затем откройте `https://cms.otakuum.ru/admin` и создайте первого администратора.
+2. **Создать сервис:** тот же Project, где лежат БД и MinIO → *Create Service* → **Application**. Provider — GitHub, репозиторий и ветка.
+3. **Build Type:** `Dockerfile`; Dockerfile Path — `Dockerfile`; Docker Context Path — `.`; Docker Build Stage — пусто.
+4. **Environment:** содержимое `dokploy.env` (шаблон — `.env.example`, блок PRODUCTION).
+5. **Domains:** Host `cms.otakuum.ru`, Path `/`, Container Port `3000`, HTTPS включён, Certificate — Let's Encrypt.
+6. **Deploy.** При первом старте CMS сама применит миграции к БД `movhub`. Затем откройте `https://cms.otakuum.ru/admin` и создайте первого администратора.
 
-Как это устроено:
+Вместо Application можно использовать сервис **Compose** с `./docker-compose.yml`: тогда домен уже описан лейблами и в UI его добавлять не нужно.
 
-| Что | Где |
+Что должно быть готово заранее:
+
+| Что | Требование |
 | --- | --- |
-| Админка и API | `https://cms.otakuum.ru` → сервис `cms` (порт 3000) |
-| Файлы (медиа) | `https://cms.otakuum.ru/media/<файл>` → сервис `movhub-minio` (порт 9000), анонимное только чтение |
-| Загрузка файлов | сервер CMS → `http://movhub-minio:9000` по внутренней сети (снаружи запись недоступна без ключей) |
-| БД | `my-first-project-database-jxz2iy:5432` через внешнюю сеть `dokploy-network` |
-| Консоль MinIO | наружу не опубликована; при необходимости — через SSH-туннель к порту 9001 контейнера |
-
-> Если меняете имя бакета (`S3_BUCKET`), поменяйте `/media/` в лейблах `docker-compose.yml` и в `S3_PUBLIC_URL`.
+| PostgreSQL | Сервис запущен (Running), база `movhub` создана. В `DATABASE_URL` — **Internal Host** из карточки БД. CMS и БД должны быть на одном сервере Dokploy |
+| MinIO | Сервис запущен, создан бакет (по умолчанию `media`) |
+| Публичное чтение бакета | Файлы должны открываться браузером без авторизации: `mc anonymous set download <alias>/media` или Access Policy = *Public* в консоли MinIO |
+| Публичный адрес MinIO | Домен с HTTPS, указывающий на MinIO (порт API 9000); он же идёт в `S3_PUBLIC_URL` вместе с именем бакета, например `https://s3.example.ru/media` |
+| `S3_ENDPOINT` | Внутренний адрес MinIO для сервера CMS: `http://<internal-host>:9000` |

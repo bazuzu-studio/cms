@@ -1,3 +1,6 @@
+# [Dokploy] Каким зависимостям разрешено выполнять build/postinstall-скрипты.
+# Формат pnpm 11; для pnpm 10 (используется в Dockerfile) то же самое задано в
+# package.json → pnpm.onlyBuiltDependencies — держите оба списка синхронными.
 allowBuilds:
   esbuild: true
   sharp: true

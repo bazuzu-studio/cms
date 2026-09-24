@@ -1,7 +1,7 @@
 import type { S3StorageOptions } from '@payloadcms/storage-s3'
 
 /**
- * `next build` выполняется в Docker/Dokploy на этапе сборки образа, где
+ * [Dokploy] `next build` выполняется в Docker/Dokploy на этапе сборки образа, где
  * runtime-переменных (S3_*, DATABASE_URL, ...) обычно ещё нет — они
  * подставляются только при запуске контейнера. Поэтому на этапе сборки
  * не падаем, а используем заглушки; в рантайме проверка остаётся строгой.

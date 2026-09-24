@@ -29,7 +29,7 @@ export const Users: CollectionConfig = {
       Boolean(user?.roles?.some((r) => ['admin', 'editor'].includes(r))),
   },
   auth: {
-    // За Traefik/HTTPS (Dokploy) auth-cookie должна быть Secure.
+    // [Dokploy] За Traefik/HTTPS (Dokploy) auth-cookie должна быть Secure.
     // SameSite=Lax достаточно для запросов между поддоменами одного сайта
     // (otakuum.ru ↔ cms.otakuum.ru).
     cookies: {
