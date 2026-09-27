@@ -36,7 +36,7 @@ Payload по умолчанию не умеет отправлять письм�
 | `EMAIL_FROM_ADDRESS` | Адрес отправителя, например `no-reply@otakuum.ru` |
 | `EMAIL_FROM_NAME` | Имя отправителя, по умолчанию `MovHub` |
 
-**Важно:** `pnpm-lock.yaml` в этом архиве **не пересобран** под новую зависимость (нет доступа к сборке в этой среде) — перед деплоем выполните `pnpm install` локально и закоммитьте обновлённый lock-файл, иначе `pnpm install --frozen-lockfile` в Dockerfile упадёт.
+**Lockfile:** `pnpm-lock.yaml` пересобран под новую зависимость и `overrides` (`pnpm install --no-frozen-lockfile`), проверено, что `pnpm install --frozen-lockfile` проходит чисто — билд в Dockerfile падать не будет.
 
 Не проверено: реальная отправка письма через ваш SMTP (нужны настоящие учётные данные провайдера).
 
