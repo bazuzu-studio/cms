@@ -4,7 +4,25 @@ import { editor } from '@/access/editor'
 import user from '@/access/user'
 import { admin } from '@/access/admin'
 import { publicOrEditor } from '@/access/publicOrEditor'
-import { cookieDomain, cookieSecure } from '@/lib/urls'
+import { cookieDomain, cookieSecure, frontendURLs } from '@/lib/urls'
+
+/**
+ * Куда вести пользователя из письма восстановления пароля.
+ *
+ * Без этого Payload по умолчанию генерирует ссылку на
+ * `${serverURL}/admin/reset/<token>` — т.е. на саму CMS (cms.otakuum.ru).
+ * Это никак не подходит для обычных пользователей сайта (они не должны
+ * ходить в /admin) и просто светит домен CMS без необходимости. Ведём на
+ * страницу фронтенда `/reset-password` (apps/web/src/components/pages/
+ * ResetPasswordClient.tsx), которая берёт token из query и дергает
+ * ту же мутацию resetPasswordUser по GraphQL — так что работает
+ * одинаково и для обычных пользователей, и для admin/editor (им после
+ * смены пароля просто нужно отдельно зайти в /admin).
+ *
+ * Если FRONTEND_URL не задан (например, локальный запуск одной CMS без
+ * фронтенда) — откатываемся на прежнее поведение Payload по умолчанию.
+ */
+const resetPasswordFrontendUrl = frontendURLs[0]
 
 export const Users: CollectionConfig = {
   slug: 'users',
@@ -37,6 +55,25 @@ export const Users: CollectionConfig = {
       sameSite: 'Lax',
       ...(cookieDomain ? { domain: cookieDomain } : {}),
     },
+
+    // См. комментарий у resetPasswordFrontendUrl выше: уводим пользователя
+    // на фронтенд, а не в /admin CMS.
+    ...(resetPasswordFrontendUrl
+      ? {
+          forgotPassword: {
+            generateEmailSubject: () => 'Восстановление пароля — MovHub',
+            generateEmailHTML: ({ token }) => {
+              const resetUrl = `${resetPasswordFrontendUrl}/reset-password?token=${token}`
+              return `
+                <p>Вы запросили восстановление пароля на MovHub.</p>
+                <p><a href="${resetUrl}">Придумать новый пароль</a></p>
+                <p>Если ссылка не открывается, скопируйте её в браузер: ${resetUrl}</p>
+                <p>Если это были не вы — просто проигнорируйте это письмо, пароль останется прежним.</p>
+              `
+            },
+          },
+        }
+      : {}),
   },
   fields: [
     { name: 'name', type: 'text' },

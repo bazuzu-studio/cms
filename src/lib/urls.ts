@@ -53,3 +53,34 @@ export const cookieSecure = cmsURL.startsWith('https://')
  * Если не задан — cookie host-only (cms.otakuum.ru), что безопаснее.
  */
 export const cookieDomain = process.env.COOKIE_DOMAIN?.trim() || undefined
+
+/**
+ * Без COOKIE_DOMAIN на разных хостах CMS/frontend auth-cookie host-only:
+ * GraphQL на cms.otakuum.ru её видит (пользователь реально залогинен), а вот
+ * middleware.ts фронтенда (apps/web) — уже нет, потому что запрос идёт на
+ * otakuum.ru, где этой cookie никогда не было. Итог — защищённые страницы
+ * (/profile, /favorites) бесконечно кидают на /login, хотя логин прошёл
+ * успешно. Ошибка тихая (просто отсутствующая cookie, никаких исключений),
+ * поэтому предупреждаем в логах при старте, а не оставляем искать её заново.
+ */
+if (!cookieDomain && frontendURLs.length > 0) {
+  try {
+    const cmsHost = new URL(cmsURL).hostname
+    const crossOriginFrontends = frontendURLs.filter((url) => new URL(url).hostname !== cmsHost)
+    if (crossOriginFrontends.length > 0) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[urls] COOKIE_DOMAIN не задан, а CMS_URL (${cmsHost}) и FRONTEND_URL ` +
+          `(${crossOriginFrontends.join(', ')}) — разные хосты. Auth-cookie будет ` +
+          'host-only на CMS_URL и не будет видна серверу фронтенда (в частности, ' +
+          'его middleware.ts для /profile, /favorites) — пользователи будут выглядеть ' +
+          'разлогиненными на защищённых страницах сразу после успешного входа. ' +
+          'Если это поддомены одного домена, задайте COOKIE_DOMAIN=.<корневой домен>, ' +
+          'например .otakuum.ru.',
+      )
+    }
+  } catch {
+    // CMS_URL/FRONTEND_URL не распарсились как URL — эту проблему read-only
+    // модуль urls.ts не решает, а падать из-за диагностики не стоит.
+  }
+}
