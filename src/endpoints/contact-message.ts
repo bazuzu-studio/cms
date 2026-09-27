@@ -5,14 +5,16 @@ import { isEmailConfigured } from '../lib/email/nodemailer'
 /**
  * POST /api/contact-message
  *
- * Принимает форму обратной связи с apps/web (см. src/app/api/contact/route.ts
- * в том проекте) и отправляет письмо через email-адаптер, уже настроенный
- * здесь в payload.config.ts (email: nodemailerAdapter(...)). Так apps/web не
- * держит собственных SMTP-учётных данных — вся отправка почты идёт через CMS.
+ * Принимает форму обратной связи — браузер бьёт сюда напрямую из
+ * ContactClient.tsx (apps/web/src/components/pages/ContactClient.tsx),
+ * без прокси через сервер фронтенда, — и отправляет письмо через
+ * email-адаптер, уже настроенный здесь в payload.config.ts
+ * (email: nodemailerAdapter(...)). Так apps/web не держит собственных
+ * SMTP-учётных данных — вся отправка почты идёт через CMS.
  *
- * Валидация здесь дублирует то, что уже проверяет apps/web: это намеренно
- * (defense in depth) — этот endpoint публичный (без auth) и может быть
- * вызван напрямую, в обход frontend-а.
+ * Вся валидация и защита (rate-limit, honeypot) — здесь, а не на фронте:
+ * этот endpoint публичный (без auth) и вызывается прямо из браузера, так что
+ * дублировать проверки на сервере фронтенда уже не от чего защищать.
  */
 
 const NAME_MAX = 100
