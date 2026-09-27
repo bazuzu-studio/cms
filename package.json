@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@payloadcms/db-postgres": "3.90.2",
+    "@payloadcms/email-nodemailer": "3.90.2",
     "@payloadcms/next": "3.90.2",
     "@payloadcms/plugin-cloud-storage": "3.90.2",
     "@payloadcms/plugin-search": "3.90.2",
@@ -73,7 +74,8 @@
       "@payloadcms/storage-s3": "3.90.2",
       "@payloadcms/plugin-search": "3.90.2",
       "@payloadcms/db-postgres": "3.90.2",
-      "@payloadcms/richtext-lexical": "3.90.2"
+      "@payloadcms/richtext-lexical": "3.90.2",
+      "@payloadcms/email-nodemailer": "3.90.2"
     }
   },
   "packageManager": "pnpm@10.34.5"

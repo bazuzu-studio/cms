@@ -14,6 +14,32 @@ PostgreSQL и MinIO — отдельные сервисы проекта Dokploy
 
 Рекомендуемый тип сервиса — **Application** (Build Type: Dockerfile), домен добавляется в UI; сервис **Compose** тоже работает. Ошибка `ENOTFOUND my-first-project-database-*` означает, что внутренний хост БД не найден: проверьте, что БД в статусе Running, что Internal Host скопирован из карточки БД точно, и что CMS и БД на одном сервере.
 
+## Ревизия 4 — Email (SMTP / Nodemailer)
+
+Payload по умолчанию не умеет отправлять письма (сброс пароля, верификация новых пользователей и т.д.) — без адаптера он только логирует предупреждение при старте и на каждой попытке отправки. Добавлен адаптер `@payloadcms/email-nodemailer` через SMTP.
+
+| Файл | Изменение |
+| --- | --- |
+| `package.json`, `pnpm.overrides` | Добавлен `@payloadcms/email-nodemailer` версии `3.90.2` (единая версия со всеми `@payloadcms/*`) |
+| `src/lib/email/nodemailer.ts` (новый) | Собирает `NodemailerAdapterArgs` из `SMTP_*` / `EMAIL_FROM_*`; `isEmailConfigured` — включён ли email вообще (по наличию `SMTP_HOST`); `getNodemailerOptions()` — **функция**, а не готовый объект, чтобы `requireEnv` не падал при импорте модуля, если email не настроен (тесты, dev без почты) |
+| `src/payload.config.ts` | `email: isEmailConfigured ? nodemailerAdapter(getNodemailerOptions()) : undefined` |
+| `.env.example` | Добавлены `SMTP_HOST`, `SMTP_PORT` (по умолчанию 587), `SMTP_SECURE` (true только для порта 465, implicit TLS), `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM_ADDRESS`, `EMAIL_FROM_NAME` |
+
+**Переменные окружения (Dokploy → Environment), дополнительно к разделу 2:**
+
+| Переменная | Значение / назначение |
+| --- | --- |
+| `SMTP_HOST` | Хост вашего SMTP-провайдера (SendGrid, Mailgun, Яндекс.Почта, Resend SMTP и т.п.). Если не задан — email отключён, ошибок не будет |
+| `SMTP_PORT` | `587` (STARTTLS, по умолчанию) или `465` (implicit TLS) |
+| `SMTP_SECURE` | `true`, только если порт `465`; иначе `false` |
+| `SMTP_USER` / `SMTP_PASS` | Учётные данные SMTP |
+| `EMAIL_FROM_ADDRESS` | Адрес отправителя, например `no-reply@otakuum.ru` |
+| `EMAIL_FROM_NAME` | Имя отправителя, по умолчанию `MovHub` |
+
+**Важно:** `pnpm-lock.yaml` в этом архиве **не пересобран** под новую зависимость (нет доступа к сборке в этой среде) — перед деплоем выполните `pnpm install` локально и закоммитьте обновлённый lock-файл, иначе `pnpm install --frozen-lockfile` в Dockerfile упадёт.
+
+Не проверено: реальная отправка письма через ваш SMTP (нужны настоящие учётные данные провайдера).
+
 ## 1. Что изменено и зачем
 
 ### Зависимости — `package.json`, `pnpm-lock.yaml`

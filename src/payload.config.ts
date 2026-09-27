@@ -5,10 +5,16 @@ import { buildConfig } from 'payload'
 import { fileURLToPath } from 'url'
 import sharp from 'sharp'
 import { s3Storage } from '@payloadcms/storage-s3'
+import { nodemailerAdapter } from '@payloadcms/email-nodemailer'
 
 import { Users } from './collections/users/config'
 import { Media } from './collections/media/config'
 import { s3StorageOptions } from './lib/storage/s3'
+// [Dokploy] Почта (сброс пароля, приглашения и т.д.) через SMTP. Если
+// SMTP_HOST не задан — email остаётся undefined, и Payload по умолчанию
+// просто логирует предупреждение вместо реальной отправки (см. документацию
+// Payload Email). Так dev-окружение без почтового сервера не падает.
+import { getNodemailerOptions, isEmailConfigured } from './lib/email/nodemailer'
 import { Genres } from './collections/genres/config'
 import { Content } from './collections/content/config'
 import { Episodes } from './collections/episodes/config'
@@ -46,6 +52,10 @@ export default buildConfig({
   },
 
   collections: [Users, Media, Genres, Content, Episodes, Favorites, Seasons],
+
+  // [Dokploy] Включаем только если заданы SMTP_* — иначе оставляем Payload
+  // работать в дефолтном режиме (лог предупреждения вместо отправки).
+  email: isEmailConfigured ? nodemailerAdapter(getNodemailerOptions()) : undefined,
 
   editor: lexicalEditor(),
 
