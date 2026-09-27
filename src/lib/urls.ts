@@ -44,6 +44,18 @@ export const frontendURLs = splitList(
 /** Origin'ы, которым Payload разрешает обращаться к API (cors + csrf). */
 export const allowedOrigins = Array.from(new Set([cmsURL, ...frontendURLs]))
 
+// Печатаем вычисленный результат при каждом старте процесса — единственный
+// способ по логам контейнера (Dokploy → Logs), не заходя в код, проверить,
+// что FRONTEND_URL реально дошёл до CMS в ожидаемом виде. Частые причины,
+// почему список здесь оказывается не тем, что вы ожидали: опечатка в имени
+// переменной в Dokploy, лишний пробел/другой протокол в значении (сравнение
+// строгое) или переменная сохранена, но контейнер не был перезапущен.
+// eslint-disable-next-line no-console
+console.log(
+  `[urls] CMS_URL=${cmsURL} FRONTEND_URL=${frontendURLs.join(', ') || '(не задан)'} ` +
+    `allowedOrigins=[${allowedOrigins.join(', ')}]`,
+)
+
 /** Auth-cookie должна быть Secure, когда CMS отдаётся по HTTPS. */
 export const cookieSecure = cmsURL.startsWith('https://')
 
@@ -53,6 +65,9 @@ export const cookieSecure = cmsURL.startsWith('https://')
  * Если не задан — cookie host-only (cms.otakuum.ru), что безопаснее.
  */
 export const cookieDomain = process.env.COOKIE_DOMAIN?.trim() || undefined
+
+// eslint-disable-next-line no-console
+console.log(`[urls] COOKIE_DOMAIN=${cookieDomain ?? '(не задан, cookie host-only)'}`)
 
 /**
  * Без COOKIE_DOMAIN на разных хостах CMS/frontend auth-cookie host-only:
