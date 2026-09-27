@@ -27,6 +27,7 @@ import { migrations } from './migrations'
 // runtime-переменных CMS_URL / FRONTEND_URL (см. src/lib/urls.ts). Раньше эти
 // значения были захардкожены на localhost и NEXT_PUBLIC_APP_URL.
 import { allowedOrigins, cmsURL } from './lib/urls'
+import { contactMessageEndpoint } from './endpoints/contact-message'
 
 import { searchPlugin } from '@payloadcms/plugin-search'
 
@@ -86,7 +87,9 @@ export default buildConfig({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sharp: sharp as any,
 
-  endpoints: [],
+  // /api/contact-message — форма обратной связи с apps/web, шлёт письмо
+  // через email-адаптер выше (см. src/endpoints/contact-message.ts).
+  endpoints: [contactMessageEndpoint],
 
   plugins: [
     s3Storage(s3StorageOptions),

@@ -14,6 +14,18 @@ PostgreSQL и MinIO — отдельные сервисы проекта Dokploy
 
 Рекомендуемый тип сервиса — **Application** (Build Type: Dockerfile), домен добавляется в UI; сервис **Compose** тоже работает. Ошибка `ENOTFOUND my-first-project-database-*` означает, что внутренний хост БД не найден: проверьте, что БД в статусе Running, что Internal Host скопирован из карточки БД точно, и что CMS и БД на одном сервере.
 
+## Ревизия 5 — Contact endpoint для apps/web
+
+Добавлен публичный (без auth) REST-endpoint `POST /api/contact-message` (`src/endpoints/contact-message.ts`), подключённый в `payload.config.ts` через `endpoints: [contactMessageEndpoint]`. Он принимает форму обратной связи с фронтенда (`apps/web`) и отправляет письмо через уже настроенный здесь `email`-адаптер (`payload.sendEmail(...)`) — так у фронтенда нет собственных SMTP-учётных данных, вся отправка идёт через CMS.
+
+Валидация (имя/email/длина сообщения), honeypot-поле `website` против ботов и простой in-memory rate-limit (5 писем/час с IP) продублированы здесь намеренно (defense in depth) — этот endpoint публичный и может быть вызван напрямую, в обход фронтенда.
+
+**Новая переменная окружения:** `CONTACT_EMAIL_TO` — куда падают сообщения из формы. Если не задана или SMTP не настроен (`isEmailConfigured === false`) — endpoint отвечает `503`, а не пытается отправить с пустыми настройками.
+
+**Требование к CORS/CSRF:** запрос идёт с origin `apps/web` (`https://otakuum.ru`), он уже входит в `allowedOrigins` (`FRONTEND_URL`, см. `src/lib/urls.ts`) — отдельно ничего настраивать не нужно.
+
+Не проверено: реальная отправка письма через этот endpoint (нужен работающий SMTP и запущенный сервер).
+
 ## Ревизия 4 — Email (SMTP / Nodemailer)
 
 Payload по умолчанию не умеет отправлять письма (сброс пароля, верификация новых пользователей и т.д.) — без адаптера он только логирует предупреждение при старте и на каждой попытке отправки. Добавлен адаптер `@payloadcms/email-nodemailer` через SMTP.
