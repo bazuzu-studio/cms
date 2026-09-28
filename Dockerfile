@@ -28,6 +28,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
 
 # ─────────────────────────────────────────────
 # builder: сборка Next.js
+# Кэш .next/cache ускоряет повторные сборки (особенно с Turbopack).
 # Runtime-переменные (DATABASE_URL, S3_*, PAYLOAD_SECRET, ...) для сборки
 # НЕ нужны: на этом этапе к БД никто не обращается, а S3-конфиг использует
 # заглушки (см. src/lib/storage/s3.ts). Они подставляются при запуске контейнера.
@@ -36,7 +37,8 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN pnpm run build
+RUN --mount=type=cache,id=next-cache,target=/app/.next/cache \
+  pnpm run build
 
 # ─────────────────────────────────────────────
 # runner: минимальный образ для запуска
