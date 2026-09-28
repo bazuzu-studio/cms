@@ -12,7 +12,8 @@ import { anyone } from '@/access/anyone'
  * В PostgreSQL:
  *   createdAt -> created_at
  *   updatedAt -> updated_at
- *   minimalAge -> minimal_age
+ *   ageRating -> age_rating
+ *   releaseStatus -> release_status
  *
  * Поле `type` различает movie / series.
  */
@@ -208,6 +209,34 @@ export const Content: CollectionConfig = {
       },
     },
 
+    /**
+     * Статус выхода: анонс / выходит / вышло.
+     *
+     * Источник — Kodik material_data.anime_status (аниме) или all_status
+     * (остальные сериалы). Значения совпадают со значениями Kodik, поэтому
+     * пайплайн (kodik-pipeline) пишет их в колонку release_status без
+     * преобразований. Команда `pipeline.py update-ongoing` использует поле,
+     * чтобы находить сериалы, у которых выходят новые серии.
+     *
+     * Не путать с `status` ниже — тот служебный (draft/published).
+     */
+    {
+      name: 'releaseStatus',
+      type: 'select',
+      label: 'Статус релиза',
+      index: true,
+      options: [
+        { label: 'Анонс', value: 'anons' },
+        { label: 'Выходит', value: 'ongoing' },
+        { label: 'Вышло', value: 'released' },
+      ],
+      admin: {
+        position: 'sidebar',
+        description:
+          'Анонс / выходит / вышло. Обновляется пайплайном из Kodik; при ручной правке будет перезаписано при следующем импорте',
+      },
+    },
+
     {
       name: 'poster',
       type: 'upload',
@@ -249,7 +278,7 @@ export const Content: CollectionConfig = {
       ],
       admin: {
         description:
-          'Служебный статус публикации записи в Payload — не путать с анимешным статусом (онгоинг/вышел) из Kodik, он в эту коллекцию не импортируется',
+          'Служебный статус публикации записи в Payload — не путать со статусом релиза (releaseStatus: анонс/выходит/вышло)',
       },
     },
   ],

@@ -8,6 +8,13 @@
 grep -rn "\[Dokploy\]" src next.config.ts pnpm-workspace.yaml Dockerfile docker-compose*.yml
 ```
 
+## Ревизия 6 — статус релиза (анонс / выходит / вышло)
+
+- В коллекцию `content` добавлено поле **`releaseStatus`** (select: `anons` / `ongoing` / `released`, проиндексировано, в сайдбаре админки). Нужно kodik-pipeline: команда `update-ongoing` по нему находит сериалы, у которых выходят серии, и переводит завершившиеся в `released`.
+- Новая миграция **`20260928_193844_add_release_status`** (колонки `content.release_status`, `_content_v.version_release_status`, два enum-типа, два индекса) + обновлённый снимок схемы `.json`. Применяется автоматически при старте контейнера (`prodMigrations`). Миграция идемпотентна: если колонки уже были созданы вручную как `VARCHAR`, они приводятся к enum (значения вне списка обнуляются).
+- Удалён скрипт `import:kodik-dump` из `package.json` (файла `src/scripts/import-kodik-dump.ts` в проекте нет); README очищен от описания несуществующего `POST /api/import/kodik`, `KODIK_API_TOKEN` и `src/lib/kodik` — импорт делает kodik-pipeline.
+- Порядок выкладки: 1) задеплоить CMS (миграция применится сама); 2) в пайплайне выполнить `sync` один раз; 3) включить расписание `update-ongoing`.
+
 ## Ревизия 3 — в Dokploy запускается только CMS
 
 PostgreSQL и MinIO — отдельные сервисы проекта Dokploy, поэтому `docker-compose.yml` теперь содержит **только `cms`** (и лейблы Traefik). Подключение к БД и S3 — только через переменные окружения: `DATABASE_URL` (Internal Host БД) и `S3_ENDPOINT` / `S3_PUBLIC_URL` / ключи (внутренний и публичный адреса вашего MinIO). Промежуточная версия с PostgreSQL внутри стека отменена.
@@ -127,6 +134,6 @@ Docker в среде проверки недоступен, поэтому об�
 
 - Начальная миграция рассчитана на **пустую** БД `movhub`. Если там уже есть таблицы, миграция упадёт.
 - После любого изменения коллекций: `pnpm migrate:create <имя>` → `pnpm generate:types` → коммит `src/migrations`.
-- В архиве нет кода импорта Kodik (`src/lib/kodik`, `src/endpoints/kodik-import.ts`, `src/scripts/import-kodik-dump.ts`), хотя README и скрипт `import:kodik-dump` на него ссылаются; в конфиге `endpoints: []`.
+- Импорта Kodik внутри CMS нет — его выполняет отдельный kodik-pipeline (см. README, «Импорт из Kodik»).
 - Для сервиса **Compose** не добавляйте домены в UI — роутер уже задан лейблами. Для **Application** домен, наоборот, добавляется в UI.
 - Публичное чтение бакета и HTTPS-домен MinIO настраиваются на вашей стороне.

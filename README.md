@@ -1,6 +1,6 @@
 # apps/cms — Backend (Payload CMS)
 
-Backend и админ-панель онлайн-кинотеатра на [Payload CMS 3](https://payloadcms.com/) (поверх Next.js). Хранит каталог фильмов/сериалов, жанры, сезоны/эпизоды, пользователей и избранное; отдаёт REST и GraphQL API для [`apps/web`](../web); умеет импортировать аниме-каталог из [Kodik API](https://kodikapi.com/).
+Backend и админ-панель онлайн-кинотеатра на [Payload CMS 3](https://payloadcms.com/) (поверх Next.js). Хранит каталог фильмов/сериалов, жанры, сезоны/эпизоды, пользователей и избранное; отдаёт REST и GraphQL API для [`apps/web`](../web); аниме-каталог из [Kodik API](https://kodikapi.com/) импортирует отдельный пайплайн kodik-pipeline (см. «Импорт из Kodik»).
 
 ## Стек
 
@@ -41,7 +41,6 @@ cp .env.example .env
 | `S3_PUBLIC_URL` | да | Публичный URL, по которому **браузер** получает файлы (`http://localhost:9000/media` локально, публичный домен вашего MinIO, например `https://s3.example.ru/media`, в production) |
 | `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | только локально | Учётные данные MinIO из `docker-compose.dev.yml` (в Dokploy MinIO — отдельный сервис, эти переменные CMS не нужны) |
 | `MINIO_API_PORT` / `MINIO_CONSOLE_PORT` | нет | Порты MinIO в `docker-compose.dev.yml` (по умолчанию `9000` / `9001`) |
-| `KODIK_API_TOKEN` | только для импорта | Токен Kodik API — нужен эндпоинту `/api/import/kodik` |
 
 Шаблон — в `.env.example`. Для Dokploy значения задаются во вкладке **Environment** (см. раздел «Деплой в Dokploy»).
 
@@ -110,23 +109,24 @@ CMS и Admin Panel будут доступны на [http://localhost:4000/admin
 
 ## Импорт из Kodik
 
-`POST /api/import/kodik` — импортирует фильмы/сериалы (по умолчанию — аниме: `anime,anime-serial`) из Kodik API в коллекции `content`/`genres`/`seasons`/`episodes`. Доступен ролям `admin` и `editor`, требует настроенного `KODIK_API_TOKEN`.
+Импорт каталога вынесен из CMS в отдельный Python-пайплайн **kodik-pipeline** (Dokploy Compose-сервис с расписанием). Он пишет напрямую в БД CMS (`content`, `genres`, `seasons`, `episodes`, `media`) и не требует токена Kodik в самой CMS.
 
-Тело запроса (`KodikImportRequestBody`):
+| Команда пайплайна | Что делает |
+| --- | --- |
+| `python pipeline.py sync` | Полный импорт каталога (fetch → load), раз в сутки |
+| `python pipeline.py update-ongoing` | Только сериалы со статусом «выходит»: новые серии, ссылки на плеер, статус релиза; раз в час |
+| `python pipeline.py posters` | Постеры → S3/MinIO |
 
-| Поле | Тип | По умолчанию | Описание |
-| --- | --- | --- | --- |
-| `mode` | `'list' \| 'search'` | `'list'` | Постраничный обход каталога или точечный поиск по названию/Shikimori ID |
-| `types` | `string` | `anime,anime-serial` | Типы контента Kodik (через запятую) |
-| `title` | `string` | — | Название для поиска (обязательно для `mode: 'search'`, если нет `shikimoriId`) |
-| `shikimoriId` | `string` | — | Поиск по ID Shikimori |
-| `year` | `number` | — | Фильтр по году (только для `mode: 'list'`) |
-| `maxPages` | `number` | `1` | Сколько страниц `/list` обойти за один вызов (защита от случайного обхода всего каталога) |
-| `downloadImages` | `boolean` | `false` | Скачивать `poster_url` и загружать в коллекцию `media` |
-| `importEpisodes` | `boolean` | `true` | Разбирать `seasons`/`episodes` и создавать соответствующие записи |
-| `dryRun` | `boolean` | `false` | Ничего не писать в БД, только посчитать, что было бы сделано |
+Пайплайн зависит от схемы БД, которую создают миграции CMS: колонки `content.release_status` / `_content_v.version_release_status` (статус релиза), `age_rating`, `player_link`, `kodik_id`, `kinopoisk_id` и др. Поэтому **сначала деплоится CMS (миграции применяются при старте), затем запускается пайплайн.**
 
-Ответ содержит отчёт: количество созданных/обновлённых/пропущенных материалов и список ошибок. Бизнес-логика вынесена в `src/lib/kodik/*` (клиент Kodik API, маппинг материалов в `content`/`genres`/`seasons`/`episodes`, загрузка медиа).
+### Статус релиза (`releaseStatus`)
+
+Поле `content.releaseStatus` (в БД — `release_status`, enum) — **Анонс** (`anons`) / **Выходит** (`ongoing`) / **Вышло** (`released`). Значения совпадают со значениями Kodik (`material_data.anime_status` / `all_status`), поэтому пайплайн пишет их без преобразований. Неизвестные значения не записываются (поле остаётся пустым).
+
+- Заполняется пайплайном при `sync` и `update-ongoing`; ручная правка в админке будет перезаписана при следующем импорте.
+- В Payload API доступно для фильтрации: `GET /api/content?where[releaseStatus][equals]=ongoing`, поле проиндексировано.
+- Не путать со служебным полем `status` (`draft`/`published`).
+- После первого деплоя миграции выполните в пайплайне один `sync`, чтобы проставить статусы всему каталогу; дальше их актуализирует `update-ongoing` (в том числе переводит завершившиеся сериалы `ongoing` → `released`).
 
 ## Хранилище файлов (S3/MinIO)
 
@@ -157,10 +157,11 @@ apps/cms/
 │   │   ├── seasons/
 │   │   └── users/
 │   ├── endpoints/
-│   │   └── kodik-import.ts   # POST /api/import/kodik
+│   │   └── contact-message.ts # POST /api/contact-message (форма обратной связи)
 │   ├── lib/
-│   │   ├── kodik/              # Клиент Kodik API, мапперы материалов/жанров/сезонов/медиа
-│   │   └── storage/             # Конфигурация S3-хранилища
+│   │   ├── email/               # SMTP (Nodemailer)
+│   │   ├── storage/             # Конфигурация S3-хранилища
+│   │   └── urls.ts              # CMS_URL / FRONTEND_URL, CORS/CSRF
 │   ├── app/
 │   │   ├── (payload)/           # Admin Panel и API-роуты Payload
 │   │   └── (frontend)/           # Служебный frontend-роут самого Payload-приложения
