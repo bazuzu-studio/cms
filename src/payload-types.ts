@@ -271,6 +271,10 @@ export interface Content {
    */
   ageRating?: number | null;
   /**
+   * Анонс / выходит / вышло. Обновляется пайплайном из Kodik; при ручной правке будет перезаписано при следующем импорте
+   */
+  releaseStatus?: ('anons' | 'ongoing' | 'released') | null;
+  /**
    * Постер (вертикальный)
    */
   poster?: (number | null) | Media;
@@ -287,7 +291,7 @@ export interface Content {
     totalDocs?: number;
   };
   /**
-   * Служебный статус публикации записи в Payload — не путать с анимешным статусом (онгоинг/вышел) из Kodik, он в эту коллекцию не импортируется
+   * Служебный статус публикации записи в Payload — не путать со статусом релиза (releaseStatus: анонс/выходит/вышло)
    */
   status: 'draft' | 'published';
   updatedAt: string;
@@ -570,6 +574,7 @@ export interface ContentSelect<T extends boolean = true> {
   rating?: T;
   playerLink?: T;
   ageRating?: T;
+  releaseStatus?: T;
   poster?: T;
   backdrop?: T;
   seasons?: T;
