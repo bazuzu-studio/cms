@@ -1,6 +1,6 @@
 import { checkRole } from '@/access/checkRole'
-import type { CollectionConfig } from 'payload'
-import type { FieldHook } from 'payload'
+import { ValidationError } from 'payload'
+import type { CollectionConfig, FieldHook } from 'payload'
 import type { User } from '@/payload-types'
 
 /**
@@ -27,33 +27,47 @@ const forceOwnerOnCreate: FieldHook<User> = ({ req, value, operation }) => {
 }
 
 /**
- * Проверка на дубликат перед созданием: один и тот же content
- * не может быть добавлен дважды одним и тем же пользователем.
- * Простой compound-unique через collection-level hook, так как
- * Payload не поддерживает составные unique-индексы из коробки.
+ * beforeValidate на уровне коллекции:
+ *  1. Для обычного пользователя владелец ВСЕГДА он сам — подставляем до
+ *     проверки дубликата, иначе проверка шла бы по чужому id из запроса.
+ *  2. Проверка дубликата: один и тот же content не может быть добавлен
+ *     дважды одним пользователем. Ошибка — ValidationError (HTTP 400 с
+ *     понятным сообщением), а не голый Error (500).
+ *
+ * Окончательную защиту от гонки двух одновременных запросов даёт
+ * уникальный индекс favorites_user_content_unique (см. миграцию
+ * hardening_and_franchise) — Payload-схемой он не описывается.
  */
 const preventDuplicateFavorite: CollectionConfig['hooks'] = {
   beforeValidate: [
     async ({ req, data, operation }) => {
-      if (operation !== 'create' || !data?.user || !data?.content) return data
+      if (operation !== 'create' || !data) return data
+
+      const next =
+        req.user && !checkRole(['admin'], req.user) ? { ...data, user: req.user.id } : data
+
+      if (!next.user || !next.content) return next
 
       const existing = await req.payload.find({
         collection: 'favorites',
         where: {
           and: [
-            { user: { equals: data.user } },
-            { content: { equals: data.content } },
+            { user: { equals: next.user } },
+            { content: { equals: next.content } },
           ],
         },
         limit: 1,
+        depth: 0,
         overrideAccess: true,
       })
 
       if (existing.totalDocs > 0) {
-        throw new Error('Этот контент уже добавлен в избранное')
+        throw new ValidationError({
+          errors: [{ message: 'Этот контент уже добавлен в избранное', path: 'content' }],
+        })
       }
 
-      return data
+      return next
     },
   ],
 }

@@ -1,18 +1,23 @@
 import { admin } from '@/access/admin'
 import { editor } from '@/access/editor'
 import type { CollectionConfig } from 'payload'
+import { revalidateAfterChange, revalidateAfterDelete } from '@/hooks/revalidate'
 
 export const Episodes: CollectionConfig = {
   slug: 'episodes',
   admin: {
     useAsTitle: 'title',
-    defaultColumns: ['season', 'episodeNumber', 'title', 'releaseDate'],
+    defaultColumns: ['season', 'episodeNumber', 'title', 'airingAt'],
   },
   access: {
     read: () => true,
     create: editor,
     update: editor,
     delete: admin,
+  },
+  hooks: {
+    afterChange: [revalidateAfterChange],
+    afterDelete: [revalidateAfterDelete],
   },
   fields: [
     {
@@ -55,7 +60,7 @@ export const Episodes: CollectionConfig = {
       type: 'number',
       label: 'Время эфира (Unix)',
       admin: {
-        description: 'Точное время выхода эпизода (если отличается от releaseDate)',
+        description: 'Время выхода эпизода (Unix-время, секунды). Фронтенд показывает его как дату выхода серии',
       },
     },
 

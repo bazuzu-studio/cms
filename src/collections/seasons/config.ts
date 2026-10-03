@@ -1,6 +1,7 @@
 import { admin } from '@/access/admin'
 import { editor } from '@/access/editor'
 import type { CollectionConfig } from 'payload'
+import { revalidateAfterChange, revalidateAfterDelete } from '@/hooks/revalidate'
 
 export const Seasons: CollectionConfig = {
   slug: 'seasons',
@@ -13,6 +14,10 @@ export const Seasons: CollectionConfig = {
     create: editor,
     update: editor,
     delete: admin,
+  },
+  hooks: {
+    afterChange: [revalidateAfterChange],
+    afterDelete: [revalidateAfterDelete],
   },
   fields: [
     {
@@ -48,6 +53,9 @@ export const Seasons: CollectionConfig = {
       type: 'join',
       collection: 'episodes',
       on: 'season',
+      // По умолчанию join отдаёт только 10 серий.
+      defaultLimit: 500,
+      defaultSort: 'episodeNumber',
     },
   ],
 }

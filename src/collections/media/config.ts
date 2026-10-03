@@ -17,5 +17,8 @@ export const Media: CollectionConfig = {
       required: true,
     },
   ],
-  upload: true,
+  upload: {
+    // Только растровые изображения: HTML/SVG в публичном бакете — вектор XSS.
+    mimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/gif'],
+  },
 }

@@ -27,6 +27,24 @@ services:
       CMS_URL: ${CMS_URL:-https://cms.otakuum.ru}
       FRONTEND_URL: ${FRONTEND_URL:-}
       COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
+      # Почта (сброс пароля, форма обратной связи). Без SMTP_HOST письма не уходят.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-no-reply@otakuum.ru}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-MovHub}
+      CONTACT_EMAIL_TO: ${CONTACT_EMAIL_TO:-}
+      # Мгновенный сброс кэша фронтенда после правок (см. src/lib/revalidate.ts).
+      # REVALIDATE_URL — адрес фронтенда из контейнера CMS, например http://<web>:3000.
+      REVALIDATE_URL: ${REVALIDATE_URL:-}
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET:-}
+      # true — вернуть публичный доступ к черновикам / включить GraphQL-интроспекцию.
+      CONTENT_PUBLIC_DRAFTS: ${CONTENT_PUBLIC_DRAFTS:-false}
+      GRAPHQL_INTROSPECTION: ${GRAPHQL_INTROSPECTION:-false}
+      # Сколько прокси стоит перед CMS (1 = Traefik, 2 = Cloudflare → Traefik).
+      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
       # S3/MinIO: S3_ENDPOINT — внутренний адрес для сервера CMS,
       # S3_PUBLIC_URL — публичный адрес файлов для браузера (https).
       S3_BUCKET: ${S3_BUCKET:-media}
@@ -46,6 +64,16 @@ services:
       - traefik.http.routers.movhub-cms.tls.certresolver=letsencrypt
       - traefik.http.routers.movhub-cms.service=movhub-cms
       - traefik.http.services.movhub-cms.loadbalancer.server.port=3000
+      # Лимит запросов к форме обратной связи (20 в минуту на IP, как его видит Traefik)
+      - traefik.http.routers.movhub-cms-contact.rule=Host(`cms.otakuum.ru`) && Path(`/api/contact-message`)
+      - traefik.http.routers.movhub-cms-contact.priority=100
+      - traefik.http.routers.movhub-cms-contact.entrypoints=websecure
+      - traefik.http.routers.movhub-cms-contact.tls.certresolver=letsencrypt
+      - traefik.http.routers.movhub-cms-contact.middlewares=movhub-cms-contact-rl
+      - traefik.http.routers.movhub-cms-contact.service=movhub-cms
+      - traefik.http.middlewares.movhub-cms-contact-rl.ratelimit.average=20
+      - traefik.http.middlewares.movhub-cms-contact-rl.ratelimit.period=1m
+      - traefik.http.middlewares.movhub-cms-contact-rl.ratelimit.burst=20
       # HTTP → HTTPS
       - traefik.http.routers.movhub-cms-web.rule=Host(`cms.otakuum.ru`)
       - traefik.http.routers.movhub-cms-web.entrypoints=web

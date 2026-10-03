@@ -28,11 +28,25 @@ import { migrations } from './migrations'
 // значения были захардкожены на localhost и NEXT_PUBLIC_APP_URL.
 import { allowedOrigins, cmsURL } from './lib/urls'
 import { contactMessageEndpoint } from './endpoints/contact-message'
+import { healthEndpoint } from './endpoints/health'
 
 import { searchPlugin } from '@payloadcms/plugin-search'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
+
+// Пустой секрет раньше молча проходил (`|| ''`) — JWT подписывались пустым
+// ключом. В production падаем сразу; на этапе `next build` переменных ещё нет
+// (см. комментарий в lib/storage/s3.ts), поэтому его пропускаем.
+const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build'
+if (process.env.NODE_ENV === 'production' && !isBuildPhase && !process.env.PAYLOAD_SECRET?.trim()) {
+  throw new Error('Missing required environment variable: PAYLOAD_SECRET')
+}
+
+// GraphQL Playground и интроспекция — только по явному флагу (нужны, чтобы
+// выполнить `pnpm codegen` фронтенда против production-схемы; обычно проще
+// запускать codegen против локальной CMS).
+const graphqlIntrospection = process.env.GRAPHQL_INTROSPECTION === 'true'
 
 export default buildConfig({
   /**
@@ -89,7 +103,7 @@ export default buildConfig({
 
   // /api/contact-message — форма обратной связи с apps/web, шлёт письмо
   // через email-адаптер выше (см. src/endpoints/contact-message.ts).
-  endpoints: [contactMessageEndpoint],
+  endpoints: [contactMessageEndpoint, healthEndpoint],
 
   plugins: [
     s3Storage(s3StorageOptions),
@@ -123,12 +137,14 @@ export default buildConfig({
   /**
    * GraphQL-настройки.
    *
-   * Временно включаем Playground и интроспекцию в production для отладки.
-   * После того как схема будет известна — верните true или удалите эти строки.
+   * В production Playground и интроспекция выключены, если не задано
+   * GRAPHQL_INTROSPECTION=true. maxComplexity ограничивает «дорогие»
+   * вложенные запросы (значение по умолчанию Payload — 1000, задано явно).
    */
   graphQL: {
-    disablePlaygroundInProduction: false,
-    disableIntrospectionInProduction: false,
+    disablePlaygroundInProduction: !graphqlIntrospection,
+    disableIntrospectionInProduction: !graphqlIntrospection,
+    maxComplexity: 1000,
   },
 
   /**

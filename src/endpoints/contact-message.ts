@@ -33,8 +33,17 @@ const RATE_LIMIT = 5
 const RATE_WINDOW_MS = 60 * 60 * 1000
 const hits = new Map<string, number[]>()
 
+const MAX_TRACKED_IPS = 5000
+
 function isRateLimited(ip: string): boolean {
   const now = Date.now()
+
+  // Map раньше никогда не чистилась — удаляем протухшие записи, когда она разрастается.
+  if (hits.size > MAX_TRACKED_IPS) {
+    for (const [key, list] of hits) {
+      if (list.every((t) => now - t >= RATE_WINDOW_MS)) hits.delete(key)
+    }
+  }
   const timestamps = (hits.get(ip) ?? []).filter((t) => now - t < RATE_WINDOW_MS)
 
   if (timestamps.length >= RATE_LIMIT) {
@@ -63,11 +72,24 @@ function json(body: unknown, status: number): Response {
   })
 }
 
+// Сколько доверенных прокси стоит перед CMS и дописывает адрес в КОНЕЦ
+// x-forwarded-for. Первые элементы списка клиент может подделать, поэтому
+// берём адрес справа: 1 = только Traefik, 2 = Cloudflare → Traefik.
+const TRUSTED_PROXY_HOPS = Math.max(1, Number(process.env.TRUSTED_PROXY_HOPS) || 1)
+
 function getClientIp(req: PayloadRequest): string {
-  // За прокси (Dokploy/nginx) реальный IP приходит в x-forwarded-for.
   // req.headers — это Web Headers (см. тип PayloadRequest), а не Node IncomingHttpHeaders.
   const forwarded = req.headers.get('x-forwarded-for')
-  return forwarded?.split(',')[0]?.trim() || 'unknown'
+  if (forwarded) {
+    const parts = forwarded
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean)
+    const ip = parts[Math.max(0, parts.length - TRUSTED_PROXY_HOPS)]
+    if (ip) return ip
+  }
+
+  return req.headers.get('x-real-ip')?.trim() || 'unknown'
 }
 
 const handler = async (req: PayloadRequest): Promise<Response> => {

@@ -28,7 +28,6 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
 
 # ─────────────────────────────────────────────
 # builder: сборка Next.js
-# Кэш .next/cache ускоряет повторные сборки (особенно с Turbopack).
 # Runtime-переменные (DATABASE_URL, S3_*, PAYLOAD_SECRET, ...) для сборки
 # НЕ нужны: на этом этапе к БД никто не обращается, а S3-конфиг использует
 # заглушки (см. src/lib/storage/s3.ts). Они подставляются при запуске контейнера.
@@ -37,8 +36,9 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN --mount=type=cache,id=next-cache,target=/app/.next/cache \
-  pnpm run build
+# Папка public может отсутствовать в репозитории — runner копирует её целиком.
+RUN mkdir -p public
+RUN pnpm run build
 
 # ─────────────────────────────────────────────
 # runner: минимальный образ для запуска
@@ -70,7 +70,7 @@ EXPOSE 3000
 
 # start-period с запасом: при первом старте применяются миграции.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-  CMD wget -q -O /dev/null "http://127.0.0.1:${PORT}/api/users/me" || exit 1
+  CMD wget -q -O /dev/null "http://127.0.0.1:${PORT}/api/health" || exit 1
 
 # server.js создаётся `next build` (output: 'standalone')
 CMD ["node", "server.js"]

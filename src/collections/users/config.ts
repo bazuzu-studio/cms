@@ -47,6 +47,13 @@ export const Users: CollectionConfig = {
       Boolean(user?.roles?.some((r) => ['admin', 'editor'].includes(r))),
   },
   auth: {
+    // Сессия на 7 дней (по умолчанию Payload — 2 часа, пользователей
+    // постоянно разлогинивало).
+    tokenExpiration: 60 * 60 * 24 * 7,
+    // Защита от перебора пароля: 5 неудачных попыток → блокировка на 10 минут.
+    maxLoginAttempts: 5,
+    lockTime: 10 * 60 * 1000,
+
     // [Dokploy] За Traefik/HTTPS (Dokploy) auth-cookie должна быть Secure.
     // SameSite=Lax достаточно для запросов между поддоменами одного сайта
     // (otakuum.ru ↔ cms.otakuum.ru).

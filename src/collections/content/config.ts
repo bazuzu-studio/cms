@@ -2,7 +2,9 @@ import type { CollectionConfig } from 'payload'
 
 import { editor } from '@/access/editor'
 import { admin } from '@/access/admin'
-import { anyone } from '@/access/anyone'
+import { publishedOrEditor } from '@/access/publishedOrEditor'
+import { revalidateAfterChange, revalidateAfterDelete } from '@/hooks/revalidate'
+import { slugify } from '@/lib/slugify'
 
 /**
  * Единая коллекция для фильмов и сериалов.
@@ -23,7 +25,7 @@ export const Content: CollectionConfig = {
   timestamps: true,
 
   admin: {
-    useAsTitle: 'titleEn',
+    useAsTitle: 'titleRu',
 
     defaultColumns: [
       'titleRu',
@@ -36,7 +38,9 @@ export const Content: CollectionConfig = {
   },
 
   access: {
-    read: anyone,
+    // Анонимы видят только опубликованное (_status = 'published'),
+    // admin/editor — всё, включая черновики. См. access/publishedOrEditor.ts.
+    read: publishedOrEditor,
     create: editor,
     update: editor,
     delete: admin,
@@ -44,6 +48,15 @@ export const Content: CollectionConfig = {
 
   versions: {
     drafts: true,
+    // Без лимита таблица _content_v разрастается при каждом обновлении
+    // записи пайплайном/админкой.
+    maxPerDoc: 10,
+  },
+
+  hooks: {
+    // Сбрасываем кэш фронтенда сразу после правки (см. lib/revalidate.ts).
+    afterChange: [revalidateAfterChange],
+    afterDelete: [revalidateAfterDelete],
   },
 
   fields: [
@@ -51,6 +64,7 @@ export const Content: CollectionConfig = {
       name: 'type',
       type: 'select',
       required: true,
+      index: true,
       options: [
         { label: 'Фильм', value: 'movie' },
         { label: 'Сериал', value: 'series' },
@@ -64,10 +78,12 @@ export const Content: CollectionConfig = {
       name: 'titleEn',
       type: 'text',
       required: true,
-      unique: true,
+      // Не unique: ремейки и одноимённые тайтлы («The Thing» 1982 и 2011)
+      // иначе ломали импорт. Уникальность обеспечивает slug.
+      index: true,
       admin: {
         description:
-          'Название на английском языке — основной идентификатор, источник slug',
+          'Название на английском языке — источник slug (может повторяться у разных тайтлов)',
       },
     },
 
@@ -98,18 +114,46 @@ export const Content: CollectionConfig = {
       admin: {
         position: 'sidebar',
         description:
-          'Генерируется автоматически из titleEn, если оставить пустым',
+          'Генерируется автоматически из названия (с транслитерацией), если оставить пустым',
       },
       hooks: {
         beforeValidate: [
-          ({ value, data }) => {
+          async ({ value, data, req, originalDoc }) => {
             if (value) return value
 
-            return data?.titleEn
-              ?.toLowerCase()
-              .trim()
-              .replace(/[^a-z0-9]+/g, '-')
-              .replace(/(^-|-$)/g, '')
+            const base =
+              slugify(data?.titleEn) ||
+              slugify(data?.titleRu) ||
+              slugify(data?.originalTitle)
+
+            if (!base) return value
+
+            // slug уникален: при коллизии добавляем год, затем kodikId.
+            const candidates = [
+              base,
+              data?.releaseYear ? `${base}-${data.releaseYear}` : '',
+              data?.kodikId ? `${base}-${slugify(String(data.kodikId))}` : '',
+            ].filter(Boolean)
+
+            for (const candidate of candidates) {
+              const existing = await req.payload.find({
+                collection: 'content',
+                where: {
+                  and: [
+                    { slug: { equals: candidate } },
+                    ...(originalDoc?.id ? [{ id: { not_equals: originalDoc.id } }] : []),
+                  ],
+                },
+                limit: 1,
+                depth: 0,
+                draft: true,
+                overrideAccess: true,
+              })
+
+              if (existing.totalDocs === 0) return candidate
+            }
+
+            return candidates[candidates.length - 1]
           },
         ],
       },
@@ -151,9 +195,21 @@ export const Content: CollectionConfig = {
     },
 
     {
+      name: 'franchiseId',
+      type: 'text',
+      index: true,
+      admin: {
+        position: 'sidebar',
+        description:
+          'Идентификатор франшизы: записи (сезоны) с одинаковым значением показываются на сайте как сезоны одного сериала. Если пусто — используется kinopoiskId',
+      },
+    },
+
+    {
       name: 'releaseYear',
       type: 'number',
       required: true,
+      index: true,
       admin: {
         description:
           'Год выпуска (movie) или год начала выхода (series)',
@@ -184,6 +240,7 @@ export const Content: CollectionConfig = {
       type: 'number',
       min: 0,
       max: 10,
+      index: true,
     },
 
     // --- НОВОЕ ПОЛЕ: playerLink ---
@@ -260,6 +317,10 @@ export const Content: CollectionConfig = {
       type: 'join',
       collection: 'seasons',
       on: 'content',
+      // По умолчанию join отдаёт только 10 документов — у длинных
+      // франшиз сезоны обрезались.
+      defaultLimit: 100,
+      defaultSort: 'seasonNumber',
       admin: {
         description:
           'Связанные сезоны (обратная связь, только для сериалов)',
@@ -278,7 +339,7 @@ export const Content: CollectionConfig = {
       ],
       admin: {
         description:
-          'Служебный статус публикации записи в Payload — не путать со статусом релиза (releaseStatus: анонс/выходит/вышло)',
+          'Устаревшее служебное поле. Видимость на сайте определяет _status (кнопки «Опубликовать» / «Черновик» в админке), а не это поле. Не путать со статусом релиза (releaseStatus)',
       },
     },
   ],
